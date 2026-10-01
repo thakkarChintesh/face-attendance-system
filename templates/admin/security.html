@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Security{% endblock %}
+{% block page_title %}Security & Unknown Faces{% endblock %}
+{% block content %}
+<div class="grid g-3">
+  <div class="card stat"><div class="stat-icon red"><i data-lucide="user-x"></i></div><div><div class="stat-label">Unknown faces</div><div class="stat-value">{{ n_unknown }}</div></div></div>
+  <div class="card stat"><div class="stat-icon amber"><i data-lucide="shield-alert"></i></div><div><div class="stat-label">Spoof attempts</div><div class="stat-value">{{ n_spoof }}</div><div class="small muted">Recognised, but no blink detected</div></div></div>
+  <div class="card stat"><div class="stat-icon green"><i data-lucide="eye"></i></div><div><div class="stat-label">Liveness check</div><div class="stat-value" style="font-size:18px">Blink (EAR)</div><a class="small" style="color:var(--primary)" href="{{ url_for('admin_settings') }}">Configure →</a></div></div>
+</div>
+<div class="card mt">
+  <div class="card-head">
+    <div class="tabs" style="margin:0;border:0">
+      <a href="{{ url_for('admin_security') }}" class="{{ 'on' if not kind }}">All</a>
+      <a href="{{ url_for('admin_security', kind='unknown') }}" class="{{ 'on' if kind=='unknown' }}">Unknown</a>
+      <a href="{{ url_for('admin_security', kind='spoof') }}" class="{{ 'on' if kind=='spoof' }}">Spoof</a>
+    </div>
+    {% if logs %}<form method="post" action="{{ url_for('admin_security_clear') }}" onsubmit="return confirm('Clear the whole security log?')"><button class="btn btn-ghost btn-sm"><i data-lucide="trash-2"></i>Clear log</button></form>{% endif %}
+  </div>
+  {% if logs %}
+  <div class="snap-grid">
+    {% for l in logs %}
+    <div class="snap">
+      <img src="{{ url_for('static', filename=l.image_path) }}" alt="snapshot" loading="lazy">
+      <div><div class="row between"><span class="badge {{ 'b-amber' if l.kind=='spoof' else 'b-red' }}">{{ l.kind|title }}</span><span class="small muted">{{ l.time[11:16] }}</span></div>
+        <div class="small muted" style="margin-top:6px">{{ l.time[:10] }} · {{ l.camera }}</div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<div class="empty"><i data-lucide="shield-check"></i><div>No security events recorded</div></div>{% endif %}
+</div>
+{% endblock %}

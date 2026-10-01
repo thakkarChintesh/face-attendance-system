@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Student Reports{% endblock %}
+{% block page_title %}Student Reports{% endblock %}
+{% block switcher %}
+<div class="switcher">
+  {% for s in subjects %}<a href="{{ url_for('teacher_reports', subject_id=s.id) }}" class="{{ 'on' if s.id == sel }}">{{ s.name }}</a>{% endfor %}
+</div>
+{% endblock %}
+{% block content %}
+{% if not subjects %}
+<div class="card empty"><i data-lucide="book-x"></i><div>No subjects assigned to you yet. Ask the admin to assign one.</div></div>
+{% else %}
+{% set defaulters = stats|selectattr('total')|selectattr('pct', 'lt', threshold)|list %}
+{% set avg = ((stats|sum(attribute='pct')) / stats|length)|round(1) if stats else 0 %}
+<div class="grid g-3">
+  <div class="card stat"><div class="stat-icon"><i data-lucide="users"></i></div><div><div class="stat-label">Students</div><div class="stat-value">{{ stats|length }}</div></div></div>
+  <div class="card stat"><div class="stat-icon green"><i data-lucide="trending-up"></i></div><div><div class="stat-label">Class average</div><div class="stat-value">{{ avg }}%</div></div></div>
+  <div class="card stat"><div class="stat-icon red"><i data-lucide="alert-triangle"></i></div><div><div class="stat-label">Below {{ threshold|round|int }}%</div><div class="stat-value">{{ defaulters|length }}</div></div></div>
+</div>
+
+<div class="card mt">
+  <div class="card-head">
+    <div><div class="card-title">Attendance per student</div><div class="card-sub">{{ sessions|length }} sessions recorded for this subject</div></div>
+    <div class="row wrap no-print">
+      <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='xlsx', subject_id=sel) }}"><i data-lucide="sheet"></i>Excel</a>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='csv', subject_id=sel) }}"><i data-lucide="file-text"></i>CSV</a>
+      {% if defaulters %}
+      <form method="post" action="{{ url_for('teacher_notify') }}" onsubmit="return confirm('Send a low-attendance alert to {{ defaulters|length }} students?')">
+        <input type="hidden" name="subject_id" value="{{ sel }}">
+        <button class="btn btn-primary btn-sm"><i data-lucide="bell-ring"></i>Alert {{ defaulters|length }} defaulters</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Student</th><th>Attended</th><th style="width:40%">Attendance</th><th>Status</th></tr></thead><tbody>
+    {% for s in stats|sort(attribute='pct') %}
+    <tr>
+      <td><div class="person"><div class="avatar sm">{{ s.name[0] }}</div><div><b>{{ s.name }}</b><span class="small muted">{{ s.username }}</span></div></div></td>
+      <td>{{ s.present }} / {{ s.total }}</td>
+      <td><div class="row"><div class="progress-track"><div class="progress-fill {{ 'good' if s.pct >= threshold else 'bad' if s.pct < 60 else 'warn' }}" style="width: {{ s.pct }}%"></div></div><b style="min-width:52px">{{ s.pct }}%</b></div></td>
+      <td>{% if not s.total %}<span class="badge b-gray">No data</span>{% elif s.pct >= threshold %}<span class="badge b-green">Good</span>{% else %}<span class="badge b-red">Defaulter</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endif %}
+{% endblock %}

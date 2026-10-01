@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+{% set completed = timetable|selectattr('session')|list|length %}
+<div class="card">
+  <div class="onboard-top">
+    <div>
+      <div class="overline">Welcome, {{ user.name }}</div>
+      <div class="h1">Today's lectures: {{ day }}, {{ today.strftime('%d %b') }}</div>
+      <div class="muted">Start a session and the camera marks students as they face it.</div>
+    </div>
+    <div class="steps-left"><div class="stat-label">Sessions done</div><b>{{ completed }}</b><span> / {{ timetable|length }}</span></div>
+  </div>
+  {% set p = (100 * completed / timetable|length)|round|int if timetable else 0 %}
+  <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width: {{ p }}%"></div></div><b>{{ p }}%</b></div>
+
+  {% for t in timetable %}
+  <div class="tt">
+    <div class="tt-time"><b>{{ t.start_time or '--:--' }}</b><span class="small muted">{{ t.end_time or '' }}</span></div>
+    <div style="flex:1">
+      <div class="step-title">{{ t.name }} <span class="muted small">{{ t.code or '' }}</span></div>
+      <div class="step-desc">{{ t.class_name }} · {{ t.strength }} students</div>
+    </div>
+    {% if t.session and t.session.status == 'active' %}
+      <span class="badge b-purple">Live · {{ t.present }}/{{ t.strength }}</span>
+      <a class="btn btn-primary" href="{{ url_for('teacher_live', sid=t.session.id) }}"><i data-lucide="video"></i>Resume</a>
+    {% elif t.session %}
+      <span class="done-tag">Done · {{ t.present }}/{{ t.strength }}</span>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('session_detail', sid=t.session.id) }}">View</a>
+    {% else %}
+      <span class="badge b-amber">Pending</span>
+      <form method="post" action="{{ url_for('teacher_session_start') }}"><input type="hidden" name="subject_id" value="{{ t.id }}">
+        <button class="btn btn-primary"><i data-lucide="play"></i>Start Attendance</button></form>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty"><i data-lucide="coffee"></i><div>No lectures scheduled today</div></div>
+  {% endfor %}
+
+  {% if subjects %}
+  <form method="post" action="{{ url_for('teacher_session_start') }}" class="row wrap" style="margin-top:14px;padding-top:16px;border-top:1px solid var(--border-soft)">
+    <span class="muted">Extra lecture?</span>
+    <select class="input" name="subject_id" style="max-width:280px">{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }} · {{ s.class_name }}</option>{% endfor %}</select>
+    <button class="btn btn-outline"><i data-lucide="plus"></i>Start session</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="grid g-main mt">
+  <div class="card">
+    <div class="card-head"><div><div class="card-title">My attendance trend</div><div class="card-sub">Last 14 days across your subjects</div></div></div>
+    <div style="height:240px"><canvas id="trend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Defaulters</div><a class="btn btn-ghost btn-sm" href="{{ url_for('teacher_reports') }}">All</a></div>
+    {% for d in defaulters %}
+    <div class="roster-item"><div class="avatar sm" style="background:var(--warning)">{{ d.name[0] }}</div>
+      <div class="grow"><b>{{ d.name }}</b><div class="small muted">{{ d.subject }}</div></div><span class="badge b-red">{{ d.pct }}%</span></div>
+    {% else %}<div class="empty"><i data-lucide="party-popper"></i><div>Everyone is above {{ min_att }}%</div></div>{% endfor %}
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="card-head"><div class="card-title">Recent sessions</div><span class="muted small">{{ n_sessions }} total</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Subject</th><th>Class</th><th>Present</th><th></th></tr></thead><tbody>
+    {% for s in recent %}
+    <tr><td><b>{{ s.date }}</b> <span class="muted small">{{ s.start_time }}</span></td><td>{{ s.subject }}</td><td>{{ s.class_name }}</td>
+      <td>{{ s.present }}/{{ s.strength }}</td>
+      <td style="text-align:right"><a class="btn btn-ghost btn-sm" href="{{ url_for('session_detail', sid=s.id) }}">View <i data-lucide="chevron-right"></i></a></td></tr>
+    {% else %}<tr><td colspan="5" class="muted">No sessions yet</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+fetch('{{ url_for("api_trend") }}?days=14').then(r => r.json()).then(data => {
+  new Chart(document.getElementById('trend'), {
+    type: 'bar',
+    data: { labels: data.map(d => d.date), datasets: [{ data: data.map(d => d.sessions ? d.pct : null), backgroundColor: '#5E48E8', borderRadius: 6, maxBarThickness: 26 }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#F3F4F6' } }, x: { grid: { display: false } } } }
+  });
+});
+</script>
+{% endblock %}

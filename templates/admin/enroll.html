@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Enroll {{ st.name }}{% endblock %}
+{% block page_title %}Face Enrollment{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div class="card">
+    <div class="row between wrap">
+      <div class="person"><div class="avatar">{{ st.name[0] }}</div>
+        <div><b style="font-size:16px">{{ st.name }}</b><div class="muted small">{{ st.username }} · {{ st.class_name or 'No class' }}</div></div></div>
+      {% if st.face_enrolled %}<span class="badge b-green"><i data-lucide="check"></i>Enrolled · {{ st.photo_count }} encodings</span>
+      {% else %}<span class="badge b-amber">Not enrolled</span>{% endif %}
+    </div>
+    {% set p = [100, (100 * photos|length / target)|round|int]|min %}
+    <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width: {{ p }}%"></div></div><b>{{ photos|length }}/{{ target }}</b></div>
+
+    <div class="grid g-2">
+      <div class="step" style="flex-direction:column;align-items:flex-start;margin:0">
+        <div class="stat-icon"><i data-lucide="camera"></i></div>
+        <div class="step-title">Capture from webcam</div>
+        <div class="step-desc">Opens the camera in a popup and takes {{ target }} photos. Ask the student to turn their head slightly left, right, up and down.</div>
+        <button type="button" class="btn btn-primary" style="margin-top:6px" onclick="openCam()"><i data-lucide="camera"></i>Open camera</button>
+      </div>
+      <form method="post" enctype="multipart/form-data" class="step" style="flex-direction:column;align-items:flex-start;margin:0">
+        <input type="hidden" name="action" value="upload">
+        <div class="stat-icon green"><i data-lucide="upload"></i></div>
+        <div class="step-title">Upload photos</div>
+        <div class="step-desc">JPG/PNG, one face per photo, front and slight side angles.</div>
+        <input type="file" name="photos" accept="image/*" multiple required class="input">
+        <button class="btn btn-outline"><i data-lucide="upload-cloud"></i>Upload & train</button>
+      </form>
+    </div>
+
+    <div class="card-head mt"><div class="card-title">Photos ({{ photos|length }})</div>
+      {% if photos %}<form method="post" onsubmit="return confirm('Delete all photos and face data for this student?')"><input type="hidden" name="action" value="reset"><button class="btn btn-ghost btn-sm" style="color:var(--danger)"><i data-lucide="trash-2"></i>Reset</button></form>{% endif %}
+    </div>
+    {% if photos %}
+    <div class="photo-grid">{% for ph in photos %}<img src="{{ url_for('dataset_file', username=st.username, filename=ph) }}" alt="">{% endfor %}</div>
+    {% else %}<div class="empty"><i data-lucide="image"></i><div>No photos yet</div></div>{% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">Tips for 95%+ accuracy</div>
+    {% for icon, t in [('sun', 'Use the same lighting as the classroom. Avoid a window behind the student.'),
+                       ('rotate-3d', 'Mix front-facing and slight side angles (≈15–20°).'),
+                       ('glasses', 'If they wear glasses, take some photos with and some without.'),
+                       ('user', 'Exactly one face per photo. Photos with 0 or 2+ faces are skipped.'),
+                       ('refresh-cw', 'Retrain when appearance changes: beard, haircut, new glasses.')] %}
+    <div class="row" style="align-items:flex-start;margin-bottom:14px"><div class="stat-icon" style="width:34px;height:34px"><i data-lucide="{{ icon }}"></i></div><div class="muted">{{ t }}</div></div>
+    {% endfor %}
+    <a class="btn btn-outline btn-block" href="{{ url_for('admin_users') }}"><i data-lucide="arrow-left"></i>Back to users</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<div class="modal" id="camModal">
+  <div class="modal-box">
+    <div class="modal-head"><div><div class="card-title">Camera: {{ st.name }}</div><div class="small muted" id="camHint">Allow camera access when the browser asks.</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="closeCam()"><i data-lucide="x"></i></button></div>
+    <div class="modal-body">
+      <div class="cam-stage"><span class="rec-dot" id="rec" style="display:none">CAMERA ON</span>
+        <video id="vid" autoplay playsinline muted></video><div class="cam-msg" id="camMsg">Waiting for camera permission…</div></div>
+      <div class="thumbs" id="thumbs"></div>
+      <div class="row between" style="margin-top:14px">
+        <span class="muted"><b id="count">0</b> / {{ target }} photos</span>
+        <div class="row"><button class="btn btn-outline" onclick="closeCam()">Cancel</button>
+          <button class="btn btn-primary" id="capBtn" onclick="capture()" disabled><i data-lucide="aperture"></i>Capture {{ target }} photos</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+lucide.createIcons();
+const TARGET = {{ target }};
+let stream = null, shots = [];
+async function openCam() {
+  camModal.classList.add('open'); shots = []; thumbs.innerHTML = ''; count.textContent = 0;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    vid.srcObject = stream; camMsg.style.display = 'none'; rec.style.display = 'flex'; capBtn.disabled = false;
+    camHint.textContent = 'Look at the camera. Good light, face clearly visible.';
+  } catch (e) {
+    camMsg.innerHTML = 'Camera blocked or not found.<br><small>Click the camera icon in the address bar and choose Allow, then try again.</small>';
+  }
+}
+function closeCam() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; rec.style.display = 'none'; camMsg.style.display = 'grid'; camMsg.textContent = 'Waiting for camera permission…';
+  camModal.classList.remove('open');
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function capture() {
+  capBtn.disabled = true;
+  const c = document.createElement('canvas'); c.width = vid.videoWidth; c.height = vid.videoHeight;
+  const hints = ['Look straight', 'Turn slightly left', 'Turn slightly right', 'Look slightly up', 'Look slightly down'];
+  for (let i = 0; i < TARGET; i++) {
+    camHint.textContent = hints[i % hints.length] + '…';
+    await sleep(600);
+    c.getContext('2d').drawImage(vid, 0, 0);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92));
+    shots.push(blob);
+    const img = document.createElement('img'); img.src = URL.createObjectURL(blob); thumbs.appendChild(img);
+    count.textContent = shots.length;
+  }
+  camHint.textContent = 'Saving and training… please wait';
+  const fd = new FormData(); fd.append('action', 'camera');
+  shots.forEach((b, i) => fd.append('photos', b, `cam_${Date.now()}_${i}.jpg`));
+  await fetch(location.href, { method: 'POST', body: fd });
+  closeCam(); location.reload();
+}
+</script>
+{% endblock %}

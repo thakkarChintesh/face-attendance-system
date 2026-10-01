@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block page_title %}My Attendance{% endblock %}
+{% block content %}
+{% set ok = overall.pct >= threshold %}
+{% if overall.total and not ok %}
+<div class="alert-box red" style="margin-bottom:20px"><i data-lucide="alert-triangle"></i>
+  Your attendance is {{ overall.pct }}%, below the required {{ threshold|round|int }}%. Attend upcoming lectures to avoid being detained.</div>
+{% endif %}
+
+<div class="grid g-main">
+  <div class="card">
+    <div class="onboard-top">
+      <div>
+        <div class="overline">Welcome, {{ st.name }}</div>
+        <div class="h1">Your attendance overview</div>
+        <div class="muted">{{ st.class_name or '—' }} · {{ st.dept or '' }} · {{ st.username }}</div>
+      </div>
+      <div class="steps-left"><div class="stat-label">Lectures attended</div><b>{{ overall.present }}</b><span> / {{ overall.total }}</span></div>
+    </div>
+    <div class="card-title" style="margin:24px 0 14px">Subject-wise attendance</div>
+    {% for s in subjects %}
+    <div class="bar-item">
+      <div class="row"><span>{{ s.name }} <span class="muted small">{{ s.code or '' }}</span></span>
+        <span><span class="muted small">{{ s.present }}/{{ s.total }}</span> &nbsp;<b>{{ s.pct }}%</b></span></div>
+      <div class="progress-track"><div class="progress-fill {{ 'good' if s.pct >= threshold else 'bad' if s.pct < 60 else 'warn' }}" style="width: {{ s.pct }}%"></div></div>
+    </div>
+    {% else %}<div class="muted">No subjects for your class yet.</div>{% endfor %}
+  </div>
+
+  <div class="card" style="text-align:center">
+    <div class="card-title" style="margin-bottom:18px;text-align:left">Overall</div>
+    <div class="ring lg" style="--p: {{ overall.pct }}; --c: {{ '#16A34A' if ok else '#DC2626' }}">
+      <div class="ring-inner"><div><b>{{ overall.pct|round|int }}%</b><span class="small muted">attendance</span></div></div>
+    </div>
+    <div style="margin-top:16px">
+      {% if not overall.total %}<span class="badge b-gray">No sessions yet</span>
+      {% elif ok %}<span class="badge b-green"><i data-lucide="check"></i>Above {{ threshold|round|int }}%</span>
+      {% else %}<span class="badge b-red"><i data-lucide="alert-triangle"></i>Below {{ threshold|round|int }}%</span>{% endif %}
+    </div>
+    {% if overall.total and not ok %}
+      {% set need = ((threshold * overall.total - 100 * overall.present) / (100 - threshold))|round(0, 'ceil')|int %}
+      <p class="small muted" style="margin-top:10px">Attend the next <b>{{ need }}</b> lecture{{ 's' if need != 1 }} in a row to reach {{ threshold|round|int }}%.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid g-2 mt">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Calendar: {{ month_label }}</div>
+      <div class="row"><a class="btn btn-ghost btn-sm" href="?month={{ prev }}"><i data-lucide="chevron-left"></i></a><a class="btn btn-ghost btn-sm" href="?month={{ next }}"><i data-lucide="chevron-right"></i></a></div>
+    </div>
+    <div class="cal">
+      {% for d in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}<div class="dow">{{ d }}</div>{% endfor %}
+      {% for d in cal %}
+        {% if d %}
+          {% set rec = by_day.get(d) %}
+          {% set cls = '' if not rec else ('full' if rec[0] == rec[1] else 'none' if rec[0] == 0 else 'part') %}
+          {% set is_today = month_label == today.strftime('%B %Y') and d == today.day %}
+          <div class="day {{ cls }} {{ 'is-today' if is_today }}" title="{{ rec[0] ~ '/' ~ rec[1] ~ ' lectures' if rec else 'No lectures' }}">{{ d }}</div>
+        {% else %}<div></div>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="legend"><span><i style="background:var(--success-soft)"></i>All attended</span><span><i style="background:var(--warning-soft)"></i>Partly</span><span><i style="background:var(--danger-soft)"></i>Absent</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Attendance history</div></div>
+    <div class="table-wrap" style="max-height:340px;overflow-y:auto"><table>
+      <thead><tr><th>Date</th><th>Subject</th><th>Status</th></tr></thead><tbody>
+      {% for h in history %}
+      <tr><td><b>{{ h.date }}</b><div class="small muted">{{ h.start_time }}</div></td><td>{{ h.subject }}</td>
+        <td>{% if h.time %}<span class="badge b-green">Present · {{ h.time[11:16] }}</span>{% else %}<span class="badge b-red">Absent</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="3" class="muted">No records yet</td></tr>{% endfor %}
+      </tbody></table></div>
+  </div>
+</div>
+
+<div class="grid g-2 mt">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Profile</div></div>
+    <div class="row" style="align-items:flex-start;gap:18px">
+      {% if photo %}<img class="avatar" style="width:84px;height:84px;border-radius:16px" src="{{ url_for('dataset_file', username=st.username, filename=photo) }}" alt="Enrolled face">
+      {% else %}<div class="avatar" style="width:84px;height:84px;border-radius:16px;font-size:28px">{{ st.name[0] }}</div>{% endif %}
+      <div style="flex:1">
+        <b style="font-size:16px">{{ st.name }}</b>
+        <div class="small muted">{{ st.email or '' }} {{ '· ' ~ st.phone if st.phone }}</div>
+        <div style="margin:8px 0">{% if st.face_enrolled %}<span class="badge b-green"><i data-lucide="scan-face"></i>Face enrolled</span>{% else %}<span class="badge b-amber">Face not enrolled</span>{% endif %}</div>
+        {% if pending %}
+          <span class="badge b-purple">Update request pending</span>
+        {% else %}
+          <form method="post" action="{{ url_for('student_request') }}" class="inline-form" style="margin-top:6px">
+            <input class="input" name="reason" placeholder="e.g. new glasses, haircut" required>
+            <button class="btn btn-outline btn-sm"><i data-lucide="refresh-cw"></i>Request update</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="card" id="notifications">
+    <div class="card-head"><div class="card-title">Notifications</div></div>
+    {% for n in notes %}
+      <div class="note-item"><div>{{ n.message }}</div><div class="small muted">{{ n.time }}</div></div>
+    {% else %}<div class="empty"><i data-lucide="bell-off"></i><div>No notifications</div></div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

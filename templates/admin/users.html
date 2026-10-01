@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}User Management{% endblock %}
+{% block switcher %}
+<div class="switcher">
+  {% for r in ['student', 'teacher', 'admin'] %}
+  <a href="{{ url_for('admin_users', role=r) }}" class="{{ 'on' if role == r }}">{{ r|title }}s</a>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><div><div class="card-title">Add {{ role }}</div><div class="card-sub">The ID is also the login username.</div></div></div>
+  <form method="post" class="form-grid">
+    <input type="hidden" name="role" value="{{ role }}">
+    <div class="field"><label>{{ 'Enrollment / Student ID' if role=='student' else 'Username' }}</label><input class="input" name="username" required placeholder="{{ '21CE011' if role=='student' else 'prof.shah' }}"></div>
+    <div class="field"><label>Full name</label><input class="input" name="name" required></div>
+    <div class="field"><label>Email</label><input class="input" type="email" name="email"></div>
+    <div class="field"><label>Phone</label><input class="input" name="phone"></div>
+    {% if role != 'admin' %}
+    <div class="field"><label>Department</label><select class="input" name="department_id"><option value="">—</option>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div>
+    {% endif %}
+    {% if role == 'student' %}
+    <div class="field"><label>Class</label><select class="input" name="class_id" required>{% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+    {% endif %}
+    <div class="field"><label>Password</label><input class="input" type="password" name="password" required minlength="6"></div>
+    <div class="field"><button class="btn btn-primary btn-block"><i data-lucide="user-plus"></i>Add {{ role|title }}</button></div>
+  </form>
+</div>
+
+<div class="card mt">
+  <div class="card-head">
+    <div class="card-title">{{ role|title }}s <span class="muted">({{ users|length }})</span></div>
+    {% if role == 'student' %}
+    <div class="row">
+      <a class="btn btn-ghost btn-sm {{ 'b-purple' if request.args.filter != 'not_enrolled' }}" href="{{ url_for('admin_users', role='student') }}">All</a>
+      <a class="btn btn-ghost btn-sm {{ 'b-purple' if request.args.filter == 'not_enrolled' }}" href="{{ url_for('admin_users', role='student', filter='not_enrolled') }}">Not enrolled</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Name</th><th>ID</th>{% if role != 'admin' %}<th>Department</th>{% endif %}{% if role=='student' %}<th>Class</th><th>Face data</th>{% endif %}<th>Contact</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><div class="person"><div class="avatar sm">{{ u.name[0] }}</div><b>{{ u.name }}</b></div></td>
+        <td class="muted">{{ u.username }}</td>
+        {% if role != 'admin' %}<td>{{ u.dept or '—' }}</td>{% endif %}
+        {% if role == 'student' %}
+        <td>{{ u.class_name or '—' }}</td>
+        <td>{% if u.face_enrolled %}<span class="badge b-green"><i data-lucide="check"></i>Enrolled · {{ u.photo_count }}</span>
+            {% else %}<span class="badge b-amber"><i data-lucide="alert-circle"></i>Not enrolled</span>{% endif %}</td>
+        {% endif %}
+        <td class="small muted">{{ u.email or '' }}<br>{{ u.phone or '' }}</td>
+        <td style="text-align:right;white-space:nowrap">
+          {% if role == 'student' %}<a class="btn btn-outline btn-sm" href="{{ url_for('admin_enroll', uid=u.id) }}"><i data-lucide="scan-face"></i>{{ 'Retrain' if u.face_enrolled else 'Enroll' }}</a>{% endif %}
+          <details class="edit" style="display:inline-block">
+            <summary class="btn btn-ghost btn-sm"><i data-lucide="pencil"></i></summary>
+            <form method="post" action="{{ url_for('admin_user_edit', uid=u.id) }}" class="card" style="position:absolute;right:28px;z-index:5;width:320px;text-align:left;display:grid;gap:10px">
+              <div class="field"><label>Name</label><input class="input" name="name" value="{{ u.name }}"></div>
+              <div class="field"><label>Email</label><input class="input" name="email" value="{{ u.email or '' }}"></div>
+              <div class="field"><label>Phone</label><input class="input" name="phone" value="{{ u.phone or '' }}"></div>
+              <div class="field"><label>Department</label><select class="input" name="department_id"><option value="">—</option>{% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if d.id == u.department_id }}>{{ d.name }}</option>{% endfor %}</select></div>
+              {% if role == 'student' %}<div class="field"><label>Class</label><select class="input" name="class_id">{% for c in classes %}<option value="{{ c.id }}" {{ 'selected' if c.id == u.class_id }}>{{ c.name }}</option>{% endfor %}</select></div>{% endif %}
+              <div class="field"><label>New password (optional)</label><input class="input" type="password" name="password"></div>
+              <button class="btn btn-primary">Save changes</button>
+            </form>
+          </details>
+          {% if u.id != user.id %}
+          <form method="post" action="{{ url_for('admin_user_delete', uid=u.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ u.name }} and their attendance + face data?')">
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)"><i data-lucide="trash-2"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7"><div class="empty"><i data-lucide="users"></i><div>No {{ role }}s found</div></div></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Live · {{ s.subject }}{% endblock %}
+{% block page_title %}Live Attendance{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div class="card">
+    <div class="row between wrap">
+      <div>
+        <div class="overline">{{ s.class_name }}</div>
+        <div class="h1" style="margin:2px 0">{{ s.subject }}</div>
+        <div class="muted small">Started {{ s.start_time }} · Blink check {{ 'ON' if cfg.liveness == '1' else 'OFF' }}</div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" onclick="openCam()"><i data-lucide="camera"></i>Open camera</button>
+        <form method="post" action="{{ url_for('teacher_session_stop', sid=s.id) }}" onsubmit="stopCam(); return confirm('Stop and save this session?')">
+          <button class="btn btn-danger"><i data-lucide="square"></i>Stop & Save</button>
+        </form>
+      </div>
+    </div>
+    <div class="tabs" style="margin:20px 0 8px">
+      <a href="#" class="on" data-f="all">All</a><a href="#" data-f="present">Present</a><a href="#" data-f="absent">Absent</a>
+    </div>
+    <div class="roster" id="roster" style="max-height:none"></div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Present</div>
+    <div class="big-count"><b id="present">0</b><span> / <span id="total">{{ students|length }}</span></span></div>
+    <div class="progress-track" style="margin:12px 0 6px"><div class="progress-fill" id="bar" style="width:0%"></div></div>
+    <div class="small muted" id="pct">0%</div>
+    <div class="legend" style="flex-direction:column;gap:8px;margin-top:20px">
+      <span><i style="background:#22C55E"></i>Green: marked present</span>
+      <span><i style="background:#F59E0B"></i>Yellow: recognised, blink once</span>
+      <span><i style="background:#EF4444"></i>Red: unknown face</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<div class="modal" id="camModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><div class="card-title">Camera: {{ s.subject }}</div><div class="small muted" id="camHint">Allow camera access when the browser asks.</div></div>
+      <div class="row"><span class="badge b-green"><span id="mPresent">0</span>&nbsp;/ {{ students|length }} present</span>
+        <button class="btn btn-ghost btn-sm" onclick="closeCam()" title="Hide (camera turns off)"><i data-lucide="x"></i></button></div>
+    </div>
+    <div class="modal-body">
+      <div class="cam-stage">
+        <span class="rec-dot" id="rec" style="display:none">CAMERA ON</span>
+        <video id="vid" autoplay playsinline muted style="opacity:0"></video>
+        <canvas id="view"></canvas>
+        <div class="cam-msg" id="camMsg">Waiting for camera permission…</div>
+      </div>
+      <div class="row between" style="margin-top:14px">
+        <span class="small muted" id="lastMark">Students look at the camera and blink once.</span>
+        <button class="btn btn-outline" onclick="closeCam()">Close camera</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+lucide.createIcons();
+const frameUrl = '{{ url_for("api_session_frame", sid=s.id) }}';
+const markUrl = '{{ url_for("session_mark", sid=s.id) }}';
+const COLORS = { green: '#22C55E', amber: '#F59E0B', red: '#EF4444' };
+let stream = null, running = false, faces = [], fw = 640, fh = 480;
+const grab = document.createElement('canvas');
+
+async function openCam() {
+  camModal.classList.add('open');
+  if (stream) return;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+    vid.srcObject = stream; await vid.play();
+    camMsg.style.display = 'none'; rec.style.display = 'flex';
+    camHint.textContent = 'Recognising faces…';
+    running = true; draw(); sendLoop();
+  } catch (e) {
+    camMsg.innerHTML = 'Camera blocked or not found.<br><small>Click the camera icon in the address bar and choose Allow, then press Open camera again.</small>';
+  }
+}
+function stopCam() {
+  running = false;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; rec.style.display = 'none'; camMsg.style.display = 'grid'; camMsg.textContent = 'Camera is off.';
+}
+function closeCam() { stopCam(); camModal.classList.remove('open'); }
+
+// Draw the live video with name boxes on top
+function draw() {
+  if (!running) return;
+  const w = vid.videoWidth, h = vid.videoHeight;
+  if (w) {
+    view.width = w; view.height = h;
+    const ctx = view.getContext('2d');
+    ctx.drawImage(vid, 0, 0, w, h);
+    const sx = w / fw, sy = h / fh;
+    ctx.lineWidth = 3; ctx.font = '600 15px "Plus Jakarta Sans", sans-serif';
+    faces.forEach(f => {
+      const [t, r, b, l] = f.box, c = COLORS[f.color];
+      ctx.strokeStyle = c; ctx.strokeRect(l * sx, t * sy, (r - l) * sx, (b - t) * sy);
+      const tw = ctx.measureText(f.label).width + 14;
+      ctx.fillStyle = c; ctx.fillRect(l * sx, b * sy, Math.max(tw, (r - l) * sx), 26);
+      ctx.fillStyle = '#fff'; ctx.fillText(f.label, l * sx + 7, b * sy + 18);
+    });
+  }
+  requestAnimationFrame(draw);
+}
+
+// Send frames to the server one after another, as fast as it can answer
+async function sendLoop() {
+  while (running) {
+    if (!vid.videoWidth) { await new Promise(r => setTimeout(r, 200)); continue; }
+    grab.width = vid.videoWidth; grab.height = vid.videoHeight;
+    grab.getContext('2d').drawImage(vid, 0, 0);
+    const blob = await new Promise(r => grab.toBlob(r, 'image/jpeg', 0.8));
+    try {
+      const res = await fetch(frameUrl, { method: 'POST', body: blob, headers: { 'Content-Type': 'image/jpeg' } });
+      const d = await res.json();
+      if (d.error) { camHint.textContent = d.error; await new Promise(r => setTimeout(r, 1500)); continue; }
+      faces = d.faces; fw = d.width; fh = d.height;
+      if (d.marked) { lastMark.textContent = 'Marked: ' + faces.filter(f => f.color === 'green').map(f => f.label).join(', '); poll(); }
+    } catch (e) { await new Promise(r => setTimeout(r, 1000)); }
+  }
+  faces = [];
+}
+
+// Roster + counts
+let filter = 'all', last = [];
+function render(list) {
+  roster.innerHTML = list.filter(s => filter === 'all' || (filter === 'present') === s.present).map(s => `
+    <div class="roster-item ${s.present ? 'present' : 'absent'}">
+      <div class="avatar sm">${s.name[0]}</div>
+      <div class="grow"><b>${s.name}</b><div class="small muted">${s.username}${s.present ? ' · ' + s.time + ' · ' + s.method : (s.enrolled ? '' : ' · face not enrolled')}</div></div>
+      ${s.present ? '<span class="badge b-green">Present</span>'
+                  : `<button class="btn btn-outline btn-sm" onclick="manual(${s.id}, '${s.name.replace(/'/g, '')}')">Mark present</button>`}
+    </div>`).join('') || '<div class="empty">Nobody here</div>';
+}
+async function poll() {
+  try {
+    const d = await (await fetch('{{ url_for("api_session_status", sid=s.id) }}')).json();
+    present.textContent = mPresent.textContent = d.present; total.textContent = d.total;
+    const p = d.total ? Math.round(100 * d.present / d.total) : 0;
+    bar.style.width = p + '%'; pct.textContent = p + '%';
+    last = d.students; render(last);
+  } catch (e) {}
+}
+async function manual(id, name) {
+  const reason = prompt(`Mark ${name} present manually. Reason?`, 'Missed by camera');
+  if (reason === null) return;
+  const fd = new FormData(); fd.append('student_id', id); fd.append('status', 'present'); fd.append('reason', reason);
+  await fetch(markUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+  poll();
+}
+document.querySelectorAll('.tabs a').forEach(a => a.onclick = e => {
+  e.preventDefault(); document.querySelectorAll('.tabs a').forEach(x => x.classList.remove('on'));
+  a.classList.add('on'); filter = a.dataset.f; render(last);
+});
+poll(); setInterval(poll, 3000);
+openCam();
+</script>
+{% endblock %}

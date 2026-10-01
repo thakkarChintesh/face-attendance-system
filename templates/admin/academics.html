@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Academics{% endblock %}
+{% block page_title %}Departments, Classes & Subjects{% endblock %}
+{% block content %}
+<div class="grid g-2">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Departments</div></div>
+    <form method="post" class="form-grid" style="margin-bottom:16px">
+      <input type="hidden" name="kind" value="department">
+      <div class="field"><label>Name</label><input class="input" name="name" required placeholder="Computer Engineering"></div>
+      <div class="field"><label>Code</label><input class="input" name="code" placeholder="CE"></div>
+      <div class="field"><button class="btn btn-primary btn-block"><i data-lucide="plus"></i>Add</button></div>
+    </form>
+    <table><thead><tr><th>Department</th><th>Classes</th><th>Students</th><th></th></tr></thead><tbody>
+      {% for d in departments %}<tr><td><b>{{ d.name }}</b> <span class="muted">{{ d.code or '' }}</span></td><td>{{ d.n_classes }}</td><td>{{ d.n_students }}</td>
+        <td style="text-align:right"><form method="post" action="{{ url_for('admin_academics_delete', kind='department', item_id=d.id) }}" onsubmit="return confirm('Delete department?')"><button class="btn btn-ghost btn-sm"><i data-lucide="trash-2"></i></button></form></td></tr>
+      {% else %}<tr><td colspan="4" class="muted">No departments yet</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Classes / Semesters</div></div>
+    <form method="post" class="form-grid" style="margin-bottom:16px">
+      <input type="hidden" name="kind" value="class">
+      <div class="field"><label>Class name</label><input class="input" name="name" required placeholder="CE Sem 5 - A"></div>
+      <div class="field"><label>Department</label><select class="input" name="department_id" required>{% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Semester</label><input class="input" type="number" name="semester" min="1" max="10"></div>
+      <div class="field"><button class="btn btn-primary btn-block"><i data-lucide="plus"></i>Add</button></div>
+    </form>
+    <table><thead><tr><th>Class</th><th>Dept</th><th>Sem</th><th>Students</th><th></th></tr></thead><tbody>
+      {% for c in classes %}<tr><td><b>{{ c.name }}</b></td><td>{{ c.dept or '—' }}</td><td>{{ c.semester or '—' }}</td><td>{{ c.n_students }}</td>
+        <td style="text-align:right"><form method="post" action="{{ url_for('admin_academics_delete', kind='class', item_id=c.id) }}" onsubmit="return confirm('Delete class?')"><button class="btn btn-ghost btn-sm"><i data-lucide="trash-2"></i></button></form></td></tr>
+      {% else %}<tr><td colspan="5" class="muted">No classes yet</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="card-head"><div><div class="card-title">Subjects & timetable</div><div class="card-sub">Assign a teacher and weekly slot. Teachers see today's lectures on their dashboard.</div></div></div>
+  <form method="post" class="form-grid" style="margin-bottom:12px">
+    <input type="hidden" name="kind" value="subject">
+    <div class="field"><label>Subject</label><input class="input" name="name" required placeholder="Machine Learning"></div>
+    <div class="field"><label>Code</label><input class="input" name="code" placeholder="CE501"></div>
+    <div class="field"><label>Class</label><select class="input" name="class_id" required>{% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Teacher</label><select class="input" name="teacher_id"><option value="">Unassigned</option>{% for t in teachers %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Start</label><input class="input" type="time" name="start_time"></div>
+    <div class="field"><label>End</label><input class="input" type="time" name="end_time"></div>
+    <div class="field" style="grid-column: span 2"><label>Days</label>{% for d in days %}<label class="chk"><input type="checkbox" name="days" value="{{ d }}" {{ 'checked' if d != 'Sun' }}>{{ d }}</label>{% endfor %}</div>
+    <div class="field"><button class="btn btn-primary btn-block"><i data-lucide="plus"></i>Add subject</button></div>
+  </form>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Subject</th><th>Class</th><th>Schedule</th><th>Teacher</th><th></th></tr></thead><tbody>
+    {% for s in subjects %}
+    <tr>
+      <td><b>{{ s.name }}</b> <span class="muted">{{ s.code or '' }}</span></td>
+      <td>{{ s.class_name }}</td>
+      <td class="small">{{ s.days or '—' }}<br><span class="muted">{{ s.start_time or '' }}{{ ' – ' ~ s.end_time if s.end_time }}</span></td>
+      <td><form method="post" class="inline-form"><input type="hidden" name="kind" value="assign"><input type="hidden" name="subject_id" value="{{ s.id }}">
+        <select class="input" name="teacher_id" onchange="this.form.submit()" style="min-width:170px"><option value="">Unassigned</option>{% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if t.id == s.teacher_id }}>{{ t.name }}</option>{% endfor %}</select></form></td>
+      <td style="text-align:right"><form method="post" action="{{ url_for('admin_academics_delete', kind='subject', item_id=s.id) }}" onsubmit="return confirm('Delete subject?')"><button class="btn btn-ghost btn-sm"><i data-lucide="trash-2"></i></button></form></td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="muted">No subjects yet</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}

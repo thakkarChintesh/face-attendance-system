@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block switcher %}
+<div class="switcher" id="range">
+  <button data-days="7" class="on">7 Days</button>
+  <button data-days="30">30 Days</button>
+</div>
+{% endblock %}
+{% block content %}
+
+<div class="grid g-4">
+  {% for label, val, icon, cls in [('Students', counts.students, 'graduation-cap', ''), ('Teachers', counts.teachers, 'users', 'green'),
+                                   ('Departments', counts.departments, 'building-2', 'amber'), ('Classes', counts.classes, 'layers', '')] %}
+  <div class="card stat">
+    <div class="stat-icon {{ cls }}"><i data-lucide="{{ icon }}"></i></div>
+    <div><div class="stat-label">{{ label }}</div><div class="stat-value">{{ val }}</div></div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid g-main mt">
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">Attendance trend</div><div class="card-sub">Percentage present across all completed sessions</div></div>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='xlsx') }}"><i data-lucide="download"></i>Export Excel</a>
+    </div>
+    <div style="height:280px"><canvas id="trend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Today's summary</div><span class="badge b-purple">{{ today.strftime('%d %b') }}</span></div>
+    <div class="ring lg" style="--p: {{ summary.pct }}"><div class="ring-inner"><div><b>{{ summary.pct|round|int }}%</b><span class="small muted">present</span></div></div></div>
+    <div class="grid g-2 mt" style="gap:12px">
+      <div class="stat"><div class="stat-icon green"><i data-lucide="user-check"></i></div><div><div class="stat-label">Present</div><div class="stat-value">{{ summary.present }}</div></div></div>
+      <div class="stat"><div class="stat-icon red"><i data-lucide="user-x"></i></div><div><div class="stat-label">Absent</div><div class="stat-value">{{ summary.absent }}</div></div></div>
+    </div>
+    {% if alerts %}
+    <a href="{{ url_for('admin_security') }}" class="alert-box red mt"><i data-lucide="shield-alert"></i>{{ alerts }} unknown / spoof alert{{ 's' if alerts != 1 }} today</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid g-2 mt">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Recent activity</div></div>
+    {% if activity %}
+    <ul class="activity">
+      {% for a in activity %}
+      <li><div class="a-icon"><i data-lucide="{{ a.icon or 'activity' }}"></i></div>
+          <div><div>{{ a.message }}</div><div class="small muted">{{ a.time }}</div></div></li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="empty"><i data-lucide="inbox"></i><div>No activity yet</div></div>{% endif %}
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Face enrollment</div><a class="btn btn-ghost btn-sm" href="{{ url_for('admin_users') }}">Manage</a></div>
+    {% set ep = (100 * counts.enrolled / counts.students)|round|int if counts.students else 0 %}
+    <div class="row between"><span class="muted">{{ counts.enrolled }} of {{ counts.students }} students enrolled</span><b>{{ ep }}%</b></div>
+    <div class="progress-track" style="margin:10px 0 20px"><div class="progress-fill" style="width: {{ ep }}%"></div></div>
+    <div class="grid g-2" style="gap:12px">
+      <a class="btn btn-outline" href="{{ url_for('admin_users', filter='not_enrolled') }}"><i data-lucide="scan-face"></i>Enroll pending</a>
+      <a class="btn btn-outline" href="{{ url_for('admin_reports') }}"><i data-lucide="alert-triangle"></i>Defaulters</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chart;
+async function loadTrend(days) {
+  const data = await (await fetch(`{{ url_for('api_trend') }}?days=${days}`)).json();
+  const ctx = document.getElementById('trend');
+  const grad = ctx.getContext('2d').createLinearGradient(0, 0, 0, 280);
+  grad.addColorStop(0, 'rgba(94,72,232,.25)'); grad.addColorStop(1, 'rgba(94,72,232,0)');
+  chart && chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.map(d => d.date),
+      datasets: [{ data: data.map(d => d.sessions ? d.pct : null), borderColor: '#5E48E8', backgroundColor: grad,
+                   fill: true, tension: .35, pointRadius: 3, pointBackgroundColor: '#5E48E8', spanGaps: true }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false },
+               tooltip: { callbacks: { label: c => ` ${c.parsed.y}% present` } } },
+               scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#F3F4F6' } },
+                         x: { grid: { display: false } } } }
+  });
+}
+document.querySelectorAll('#range button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#range button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); loadTrend(b.dataset.days);
+});
+loadTrend(7);
+</script>
+{% endblock %}

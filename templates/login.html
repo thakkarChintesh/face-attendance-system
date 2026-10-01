@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · FaceTrack</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.441.0/dist/umd/lucide.min.js"></script>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-side">
+    <div class="brand" style="padding:0">
+      <div class="brand-logo"><i data-lucide="scan-face"></i></div>
+      <div><div class="brand-name">FaceTrack.io</div><div class="brand-sub">College Project</div></div>
+    </div>
+    <div style="position:relative;z-index:1">
+      <div class="overline" style="color:#9D90FF">Facial recognition attendance</div>
+      <h1>Attendance that marks itself in seconds.</h1>
+      <ul>
+        <li><i data-lucide="scan-face"></i>dlib 128-D face encodings, 95–99% accurate in class</li>
+        <li><i data-lucide="eye"></i>Blink liveness check blocks printed-photo spoofs</li>
+        <li><i data-lucide="bar-chart-3"></i>Live counts, defaulter lists and Excel reports</li>
+      </ul>
+    </div>
+    <div class="small" style="color:#6B7280;position:relative;z-index:1">© {{ today.year }} FaceTrack</div>
+  </div>
+  <div class="login-form">
+    <form class="card login-card" method="post">
+      <div class="overline">Welcome back</div>
+      <div class="h1">Sign in to your dashboard</div>
+      <p class="muted" style="margin-bottom:22px">Admin, teacher or student, all from one login.</p>
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+      {% endwith %}
+      <div class="field" style="margin-bottom:14px"><label>Username / ID</label><input class="input" name="username" required autofocus></div>
+      <div class="field" style="margin-bottom:20px"><label>Password</label><input class="input" type="password" name="password" required></div>
+      <button class="btn btn-primary btn-block">Sign in <i data-lucide="arrow-right"></i></button>
+      <p class="small muted" style="margin-top:16px;text-align:center">Demo accounts are listed in README.md</p>
+    </form>
+  </div>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>
