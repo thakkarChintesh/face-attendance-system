@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<form method="post" class="grid g-2">
+  <div class="card">
+    <div class="card-head"><div><div class="card-title">Recognition</div><div class="card-sub">Applied to the next attendance session.</div></div><span class="stat-icon"><i data-lucide="scan-face"></i></span></div>
+    <div class="field" style="margin-bottom:18px">
+      <label>Match threshold: <b id="thv">{{ s.threshold }}</b> <span class="muted">(lower = stricter, recommended 0.45–0.50)</span></label>
+      <input type="range" name="threshold" min="0.35" max="0.65" step="0.01" value="{{ s.threshold }}" style="width:100%;accent-color:var(--primary)" oninput="thv.textContent=this.value">
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Minimum attendance (%)</label><input class="input" type="number" min="0" max="100" name="min_attendance" value="{{ s.min_attendance }}"></div>
+    </div>
+    <label class="step" style="margin-top:18px;cursor:pointer">
+      <input type="checkbox" name="liveness" value="1" {{ 'checked' if s.liveness == '1' }} style="width:18px;height:18px;accent-color:var(--primary)">
+      <div><div class="step-title">Blink liveness detection</div><div class="step-desc">Only mark attendance after the person blinks. Blocks printed photos and phone screens.</div></div>
+      <span class="b-gold badge step-action">RECOMMENDED</span>
+    </label>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><div class="card-title">Email notifications</div><div class="card-sub">Leave the host empty to only show alerts inside the app.</div></div><span class="stat-icon green"><i data-lucide="mail"></i></span></div>
+    <div class="form-grid">
+      <div class="field"><label>SMTP host</label><input class="input" name="smtp_host" value="{{ s.smtp_host }}" placeholder="smtp.gmail.com"></div>
+      <div class="field"><label>Port</label><input class="input" name="smtp_port" value="{{ s.smtp_port }}"></div>
+      <div class="field"><label>Username</label><input class="input" name="smtp_user" value="{{ s.smtp_user }}"></div>
+      <div class="field"><label>App password</label><input class="input" type="password" name="smtp_password" placeholder="{{ '•••••• (saved)' if s.smtp_password else '' }}"></div>
+      <div class="field"><label>From address</label><input class="input" name="smtp_from" value="{{ s.smtp_from }}"></div>
+    </div>
+    <button class="btn btn-primary mt"><i data-lucide="save"></i>Save settings</button>
+  </div>
+</form>
+
+<div class="card mt">
+  <div class="card-head"><div><div class="card-title">Backup & restore</div><div class="card-sub">Download the whole database as SQL, or restore from a previous backup.</div></div><span class="stat-icon amber"><i data-lucide="database"></i></span></div>
+  <div class="row wrap">
+    <a class="btn btn-outline" href="{{ url_for('admin_backup') }}"><i data-lucide="download"></i>Download backup</a>
+    <form method="post" action="{{ url_for('admin_restore') }}" enctype="multipart/form-data" class="inline-form" onsubmit="return confirm('This replaces ALL current data. Continue?')">
+      <input class="input" type="file" name="backup" accept=".sql" required style="max-width:260px">
+      <button class="btn btn-danger"><i data-lucide="upload"></i>Restore</button>
+    </form>
+  </div>
+  <p class="small muted" style="margin-top:10px">Face photos live in <code>dataset/</code> and encodings in <code>encodings/faces.pkl</code>. Back those folders up separately.</p>
+</div>
+{% endblock %}

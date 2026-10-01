@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports & Analytics{% endblock %}
+{% block content %}
+<div class="row between no-print" style="margin-bottom:20px">
+  <div class="muted">Defaulter threshold: <b>{{ threshold|round|int }}%</b> (change in Settings)</div>
+  <div class="row"><a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='xlsx') }}"><i data-lucide="sheet"></i>Full Excel report</a>
+    <button class="btn btn-outline btn-sm" onclick="window.print()"><i data-lucide="printer"></i>Print / PDF</button></div>
+</div>
+
+<div class="grid g-2">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Class-wise attendance</div></div>
+    <div style="height:260px"><canvas id="classChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Subject comparison</div></div>
+    <div style="height:260px"><canvas id="subjectChart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid g-2 mt">
+  <div class="card">
+    <div class="card-head"><div class="card-title">Department-wise</div></div>
+    {% for d in dept_rows %}
+    <div class="bar-item"><div class="row"><span>{{ d.name }}</span><b>{{ d.pct }}%</b></div>
+      <div class="progress-track"><div class="progress-fill {{ 'good' if d.pct >= threshold else 'warn' }}" style="width: {{ d.pct }}%"></div></div></div>
+    {% else %}<div class="muted">No data</div>{% endfor %}
+    <div class="card-title" style="margin:24px 0 12px">Monthly summary</div>
+    <table><thead><tr><th>Month</th><th>Sessions</th><th>Marks recorded</th></tr></thead><tbody>
+      {% for m in month %}<tr><td><b>{{ m.m }}</b></td><td>{{ m.sessions }}</td><td>{{ m.present }}</td></tr>{% else %}<tr><td colspan="3" class="muted">No sessions yet</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card">
+    <div class="card-head"><div><div class="card-title">Defaulters</div><div class="card-sub">Students below {{ threshold|round|int }}% overall</div></div><span class="badge b-red">{{ defaulters|length }}</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Student</th><th>Class</th><th>Attended</th><th>%</th></tr></thead><tbody>
+      {% for s in defaulters %}
+      <tr><td><div class="person"><div class="avatar sm">{{ s.name[0] }}</div><div><b>{{ s.name }}</b><span class="small muted">{{ s.username }}</span></div></div></td>
+        <td>{{ s.class_name }}</td><td>{{ s.present }}/{{ s.total }}</td><td><span class="badge b-red">{{ s.pct }}%</span></td></tr>
+      {% else %}<tr><td colspan="4"><div class="empty"><i data-lucide="party-popper"></i><div>No defaulters</div></div></td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const th = {{ threshold }};
+function bar(id, labels, values) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, borderRadius: 8, maxBarThickness: 42,
+            backgroundColor: values.map(v => v >= th ? '#5E48E8' : '#F59E0B') }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#F3F4F6' } }, x: { grid: { display: false } } } }
+  });
+}
+bar('classChart', {{ class_rows|map(attribute='name')|list|tojson }}, {{ class_rows|map(attribute='pct')|list|tojson }});
+bar('subjectChart', {{ subject_rows|map(attribute='name')|list|tojson }}, {{ subject_rows|map(attribute='pct')|list|tojson }});
+</script>
+{% endblock %}

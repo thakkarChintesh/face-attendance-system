@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ s.subject }} · {{ s.date }}{% endblock %}
+{% block page_title %}Class Attendance{% endblock %}
+{% block content %}
+{% set present = students|selectattr('present')|list|length %}
+<div class="card">
+  <div class="row between wrap">
+    <div>
+      <div class="overline">{{ s.class_name }} · {{ s.teacher }}</div>
+      <div class="h1">{{ s.subject }}</div>
+      <div class="muted">{{ s.date }} · {{ s.start_time }}{{ ' – ' ~ s.end_time if s.end_time }}
+        {% if s.status == 'active' %}<span class="badge b-purple">Live</span>{% else %}<span class="badge b-green">Completed</span>{% endif %}</div>
+    </div>
+    <div class="row">
+      <div class="steps-left"><div class="stat-label">Present</div><b>{{ present }}</b><span> / {{ students|length }}</span></div>
+      <div class="steps-left"><div class="stat-label">Absent</div><b style="color:var(--danger)">{{ students|length - present }}</b></div>
+    </div>
+  </div>
+  <div class="row no-print" style="margin-top:16px">
+    {% if s.status == 'active' and user.role == 'teacher' %}<a class="btn btn-primary btn-sm" href="{{ url_for('teacher_live', sid=s.id) }}"><i data-lucide="video"></i>Back to live session</a>{% endif %}
+    <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='xlsx', subject_id=s.subject_id, date_from=s.date, date_to=s.date) }}"><i data-lucide="sheet"></i>Excel</a>
+    <button class="btn btn-outline btn-sm" onclick="window.print()"><i data-lucide="printer"></i>Print / PDF</button>
+  </div>
+</div>
+
+<div class="card mt">
+  <div class="card-head"><div><div class="card-title">Roster</div><div class="card-sub">Use manual marking for students the camera missed. The reason is saved in the activity log.</div></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Student</th><th>Status</th><th>Time</th><th>Method</th><th>Note</th><th class="no-print">Correct entry</th></tr></thead>
+    <tbody>
+    {% for st in students %}
+    <tr>
+      <td><div class="person"><div class="avatar sm" style="background: {{ '#16A34A' if st.present else '#D1D5DB' }}">{{ st.name[0] }}</div><div><b>{{ st.name }}</b><span class="small muted">{{ st.username }}</span></div></div></td>
+      <td>{% if st.present %}<span class="badge b-green">Present</span>{% else %}<span class="badge b-red">Absent</span>{% endif %}</td>
+      <td>{{ st.time or '—' }}</td>
+      <td>{% if st.method == 'face' %}<span class="badge b-purple"><i data-lucide="scan-face"></i>Face</span>{% elif st.method %}<span class="badge b-gray"><i data-lucide="hand"></i>Manual</span>{% endif %}</td>
+      <td class="small muted">{{ st.note or '' }}</td>
+      <td class="no-print">
+        <form method="post" action="{{ url_for('session_mark', sid=s.id) }}" class="inline-form">
+          <input type="hidden" name="student_id" value="{{ st.id }}">
+          <input type="hidden" name="status" value="{{ 'absent' if st.present else 'present' }}">
+          <input class="input" name="reason" placeholder="Reason" required style="min-width:150px;padding:6px 10px">
+          <button class="btn btn-sm {{ 'btn-outline' if st.present else 'btn-primary' }}">Mark {{ 'absent' if st.present else 'present' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}

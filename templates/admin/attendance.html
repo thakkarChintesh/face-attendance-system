@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Attendance{% endblock %}
+{% block page_title %}Attendance Records{% endblock %}
+{% block content %}
+<div class="card">
+  <form class="form-grid" method="get">
+    <div class="field"><label>From</label><input class="input" type="date" name="date_from" value="{{ args.date_from or '' }}"></div>
+    <div class="field"><label>To</label><input class="input" type="date" name="date_to" value="{{ args.date_to or '' }}"></div>
+    <div class="field"><label>Class</label><select class="input" name="class_id"><option value="">All classes</option>{% for c in classes %}<option value="{{ c.id }}" {{ 'selected' if args.class_id == c.id|string }}>{{ c.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Subject</label><select class="input" name="subject_id"><option value="">All subjects</option>{% for s in subjects %}<option value="{{ s.id }}" {{ 'selected' if args.subject_id == s.id|string }}>{{ s.name }}</option>{% endfor %}</select></div>
+    <div class="field"><button class="btn btn-primary btn-block"><i data-lucide="filter"></i>Apply</button></div>
+  </form>
+</div>
+
+<div class="card mt">
+  <div class="card-head">
+    <div><div class="card-title">Sessions <span class="muted">({{ sessions|length }})</span></div><div class="card-sub">Open a session to see the roster or correct an entry.</div></div>
+    <div class="row no-print">
+      <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='csv', **args) }}"><i data-lucide="file-text"></i>CSV</a>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('export', fmt='xlsx', **args) }}"><i data-lucide="sheet"></i>Excel</a>
+      <button class="btn btn-outline btn-sm" onclick="window.print()"><i data-lucide="printer"></i>PDF</button>
+    </div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Time</th><th>Class</th><th>Subject</th><th>Teacher</th><th>Present</th><th>%</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sessions %}
+      {% set p = (100 * s.present / s.strength)|round|int if s.strength else 0 %}
+      <tr>
+        <td><b>{{ s.date }}</b></td><td class="muted">{{ s.start_time }}{{ '–' ~ s.end_time if s.end_time }}</td>
+        <td>{{ s.class_name }}</td><td>{{ s.subject }}</td><td>{{ s.teacher }}</td>
+        <td>{{ s.present }} / {{ s.strength }}</td>
+        <td><span class="badge {{ 'b-green' if p >= 75 else 'b-amber' if p >= 50 else 'b-red' }}">{{ p }}%</span>
+            {% if s.status == 'active' %}<span class="badge b-purple">Live</span>{% endif %}</td>
+        <td style="text-align:right"><a class="btn btn-ghost btn-sm" href="{{ url_for('session_detail', sid=s.id) }}">View <i data-lucide="chevron-right"></i></a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8"><div class="empty"><i data-lucide="calendar-x"></i><div>No sessions match these filters</div></div></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}

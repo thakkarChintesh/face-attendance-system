@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Face Requests{% endblock %}
+{% block page_title %}Face Data Update Requests{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><div><div class="card-title">Requests from students</div><div class="card-sub">Approving opens the enrollment page so you can capture new photos.</div></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Student</th><th>Reason</th><th>Requested</th><th>Status</th><th></th></tr></thead><tbody>
+    {% for r in reqs %}
+    <tr>
+      <td><div class="person"><div class="avatar sm">{{ r.name[0] }}</div><div><b>{{ r.name }}</b><span class="small muted">{{ r.username }}</span></div></div></td>
+      <td>{{ r.reason or '—' }}</td><td class="muted small">{{ r.time }}</td>
+      <td><span class="badge {{ {'pending':'b-amber','approved':'b-purple','done':'b-green','rejected':'b-red'}[r.status] }}">{{ r.status|title }}</span></td>
+      <td style="text-align:right;white-space:nowrap">
+        {% if r.status == 'pending' %}
+        <form method="post" style="display:inline"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="decision" value="approved"><button class="btn btn-primary btn-sm"><i data-lucide="check"></i>Approve</button></form>
+        <form method="post" style="display:inline"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="decision" value="rejected"><button class="btn btn-outline btn-sm">Reject</button></form>
+        {% elif r.status == 'approved' %}
+        <a class="btn btn-outline btn-sm" href="{{ url_for('admin_enroll', uid=r.student_id) }}"><i data-lucide="scan-face"></i>Enroll now</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5"><div class="empty"><i data-lucide="inbox"></i><div>No requests</div></div></td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+{% endblock %}
